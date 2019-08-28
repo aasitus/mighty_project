@@ -1,7 +1,9 @@
 # Functions for downloading Reddit stuff from Pushshift
 
 import pandas as pd
+import sqlite3
 import psaw
+import os
 import datetime
 
 api = psaw.PushshiftAPI()
@@ -101,3 +103,49 @@ def subreddit_submissions(subreddit, chunk_size, after, data_path = '', verbose 
 
         if len(df) < chunk_size:
             break
+
+
+def json_files_to_database(db_name: str, path: str = './'):
+    """
+    Function that puts all comments and submission files of in folder in one sqlite3 
+    database containing two table "coments" and "submissions". If a database with the
+    same name already exists, the old database is deleted first.
+    :param db_name: Name of the database
+    :param path: Path where the json files are and also outputdirectory for the new database
+    """ 
+    # Append the right ending for the directory path
+    if not path.endswith('/'):
+        path += '/' 
+    # List of all json files       
+    dir_list = [i for i in os.listdir(path) if i.endswith('.json')]
+
+    # Append the right file extension
+    if not db_name.endswith('.db'):
+        db_name += '.db'
+
+    # Delete the old data base, if it already exists
+    if os.path.isfile(path + db_name):
+        os.remove(path + db_name)
+
+    # Build a connection to a new database.
+    conn = sqlite3.connect(path + db_name)
+
+    for entry in dir_list:       
+        # Check if file contains 'comments' or 'submissions'
+        if 'comments' in entry:
+            table_name = 'comments'
+        elif 'submissions' in entry:
+            table_name = 'submissions'
+        else:
+            continue
+        
+        # Load data
+        df = pd.read_json(path + entry)
+        
+        # Store in sqlite data base
+        df.to_sql(
+            name=table_name,
+            con=conn,
+            if_exists='append',
+            index=False,
+        )
